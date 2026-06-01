@@ -1,0 +1,10 @@
+target/
+project/target/
+project/project/
+generated/
+*.vcd
+test_run_dir/
+.bsp/
+.metals/
+.bloop/
+*.class
