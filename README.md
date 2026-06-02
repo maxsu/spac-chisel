@@ -17,7 +17,23 @@ and adds EDRRM — the scheduler the paper describes but never implemented in RT
 | DSE layer (StatSim, DSEEngine, FeatureExtractor) | 🔜 Milestone 2 | |
 | Protocol layer (ProtocolSpec, PacketHPPEmitter) | 🔜 Milestone 3 | |
 
-## Build & Test
+## Install Chisel
+### Arch
+```bash
+sudo pacman -S jdk-openjdk sbt git
+```
+### Debian / Ubuntu
+```bash
+echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" \
+  | sudo tee /etc/apt/sources.list.d/sbt.list
+curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" \
+   | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/sbt.gpg
+sudo apt update
+sudo apt install -y openjdk-21-jdk git sbt
+```
+
+
+# Build & Test
 
 ```bash
 # Requires JDK 11+; sbt fetches everything else (~2 min first run)
