@@ -3,47 +3,61 @@ package spac.hw
 import chisel3._
 import chisel3.util._
 
-// ── Common IO ─────────────────────────────────────────────────────────────
-
 class FwdTableIO(p: SwitchParams) extends Bundle {
-  val metaIn  = Vec(p.nPorts, Flipped(Decoupled(new Metadata(p))))
-  val metaOut = Vec(p.nPorts, Decoupled(new Metadata(p)))
+  val metaIn  = Vec(
+    p.nPorts,
+    Flipped(Decoupled(new Metadata(p)))
+  )
+  val metaOut = Vec(
+    p.nPorts,
+    Decoupled(new Metadata(p))
+  )
 }
-
-// ── FullLookupTable ───────────────────────────────────────────────────────
 
 class FullLookupTable(p: SwitchParams) extends Module with HasFwdTableIO {
   val io = IO(new FwdTableIO(p))
+ 
+  val tableEntryBits = 1 + p.portBits  // each entry is a `valid` bit (MSB) & a port id
+  val tableSize      = 1 << p.addrBits // table is 2^addrBits deep
 
-  val tableEntryBits = 1 + p.portBits
-  val tableSize      = 1 << p.addrBits
+  // persistent forwarding table 
+  val table = RegInit(VecInit(
+    Seq.fill(tableSize)(0.U(tableEntryBits.W)) // reset to 0 (all invalid)
+  ))
 
-  val fwd = RegInit(VecInit(Seq.fill(tableSize)(0.U(tableEntryBits.W))))
-
-  // Snapshot at start of cycle
-  val fwdSnap = Wire(Vec(tableSize, UInt(tableEntryBits.W)))
-  fwdSnap := fwd
-
+  // write port per slot => default idle
   val writeEn  = Wire(Vec(tableSize, Bool()))
   val writeVal = Wire(Vec(tableSize, UInt(tableEntryBits.W)))
-  for (i <- 0 until tableSize) { writeEn(i) := false.B; writeVal(i) := 0.U }
+  for (i <- 0 until tableSize) { 
+    writeEn(i) := false.B
+    writeVal(i) := 0.U
+  }
+
+  // read-before-write snapshot
+  val snapshot = Wire(Vec(tableSize, UInt(tableEntryBits.W)))
+  snapshot := table
 
   for (sp <- 0 until p.nPorts) {
+    // defaults: no output, bits pass through, ready = downstream ready
     io.metaOut(sp).valid := false.B
     io.metaOut(sp).bits  := io.metaIn(sp).bits
     io.metaIn(sp).ready  := io.metaOut(sp).ready
 
+    // fire only on valid/ready handshake
     when(io.metaIn(sp).valid && io.metaOut(sp).ready) {
       val meta   = io.metaIn(sp).bits
       val srcIdx = meta.srcAddr
       val dstIdx = meta.dstAddr
 
+      // learn: src reachable via this port
       writeEn(srcIdx)  := true.B
       writeVal(srcIdx) := Cat(1.U(1.W), sp.U(p.portBits.W))
 
-      val entry  = fwdSnap(dstIdx)
+      // lookup dst against snapshot
+      val entry  = snapshot(dstIdx)
       val hit    = entry(tableEntryBits - 1)
 
+      // hit -> unicast to stored port; miss -> flood
       val outMeta = Wire(new Metadata(p))
       outMeta           := meta
       outMeta.dstPort   := Mux(hit, entry(p.portBits - 1, 0), 0.U)
@@ -55,12 +69,11 @@ class FullLookupTable(p: SwitchParams) extends Module with HasFwdTableIO {
     }
   }
 
+  // commit learns into the register table
   for (i <- 0 until tableSize) {
-    when(writeEn(i)) { fwd(i) := writeVal(i) }
+    when(writeEn(i)) { table(i) := writeVal(i) }
   }
 }
-
-// ── MultiBankHashEngine ────────────────────────────────────────────────────
 
 class MultiBankHashEngine(p: SwitchParams) extends Module with HasFwdTableIO {
   val io = IO(new FwdTableIO(p))
@@ -93,7 +106,7 @@ class MultiBankHashEngine(p: SwitchParams) extends Module with HasFwdTableIO {
   }
 
   for (b <- 0 until BANKS) {
-    // ---- write (src learn): priority mux from savePtr ----
+    // write (src learn): priority mux from savePtr
     val saveGrant   = Wire(UInt(p.portBits.W)); saveGrant := 0.U
     val saveGrantEn = Wire(Bool());             saveGrantEn := false.B
     for (step <- (p.nPorts - 1) to 0 by -1) {
@@ -118,15 +131,17 @@ class MultiBankHashEngine(p: SwitchParams) extends Module with HasFwdTableIO {
       savePtr(b) := (saveGrant +& 1.U)(p.portBits-1,0)
     }
 
-    // ---- read (dst lookup): issue read this cycle, commit next cycle ----
-    val readGrant   = Wire(UInt(p.portBits.W)); readGrant := 0.U
-    val readGrantEn = Wire(Bool());             readGrantEn := false.B
+    // read (dst lookup): issue read this cycle, commit next cycle
+    val readGrant   = Wire(UInt(p.portBits.W))
+    readGrant := 0.U
+    val readGrantEn = Wire(Bool())
+    readGrantEn := false.B
     for (step <- (p.nPorts - 1) to 0 by -1) {
       for (sp <- 0 until p.nPorts) {
         when((readPtr(b) +& step.U)(p.portBits-1,0) === sp.U &&
              !readDone(sp) &&
              buf(sp).dstAddr(bankBits-1,0) === b.U) {
-          readGrant   := sp.U
+          readGrant := sp.U
           readGrantEn := true.B
         }
       }
@@ -134,7 +149,7 @@ class MultiBankHashEngine(p: SwitchParams) extends Module with HasFwdTableIO {
     val dstKey = MuxLookup(readGrant, 0.U,
       (0 until p.nPorts).map(i => i.U -> buf(i).dstAddr(p.hashBits-1,0)))
     val memOut         = mem(b).read(dstKey)
-    val readGrantReg   = RegNext(readGrant,   0.U)
+    val readGrantReg   = RegNext(readGrant, 0.U)
     val readGrantEnReg = RegNext(readGrantEn, false.B)
 
     when(readGrantEnReg) {

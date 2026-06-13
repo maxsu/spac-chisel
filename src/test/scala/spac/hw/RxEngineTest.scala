@@ -1,83 +1,76 @@
 package spac.hw
 
 import chisel3._
-import chisel3.util._
 import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class RxEngineTest extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  val p = SwitchParams(nPorts=4, addrBits=8, dataBits=512,
+                       dstOffBits=128, srcOffBits=136, lenOffBits=176)
+  private var device: RxEngine = _
 
-  val p = SwitchParams(nPorts = 4, addrBits = 8, dataBits = 512,
-                       dstOffBits = 128, srcOffBits = 136, lenOffBits = 176)
+  def rxTest(body: => Unit): Unit =
+    test(new RxEngine(p, 0)) { dut => device = dut; body }
 
-  def makeWord(src: Int, dst: Int, len: Int, last: Boolean = true): BigInt = {
+  private def hdrWord(src: Int, dst: Int, len: Int): BigInt = {
     var w = BigInt(0)
-    w |= BigInt(len) << 176
-    w |= BigInt(src) << 136
-    w |= BigInt(dst) << 128
+    w |= BigInt(len) << p.lenOffBits
+    w |= BigInt(src) << p.srcOffBits
+    w |= BigInt(dst) << p.dstOffBits
     w
   }
 
-  "RxEngine" should "emit metadata and forward the header word (single-word packet)" in {
-    test(new RxEngine(p, 0)) { dut =>
-      dut.io.dataOut.ready.poke(true.B)
-      dut.io.metaOut.ready.poke(true.B)
-      dut.io.dataIn.bits.data.poke(makeWord(src=1, dst=2, len=64).U)
-      dut.io.dataIn.bits.last.poke(true.B)
-      dut.io.dataIn.valid.poke(true.B)
-      // Check combinationally before stepping — RxEngine is purely combinational in sHeader
-      dut.io.metaOut.valid.expect(true.B)
-      dut.io.metaOut.bits.srcAddr.expect(1.U)
-      dut.io.metaOut.bits.dstAddr.expect(2.U)
-      dut.io.metaOut.bits.pktLen.expect(64.U)
-      dut.io.dataOut.valid.expect(true.B)
-      dut.io.dataIn.ready.expect(true.B)
-    }
+  def outputsReady = { device.io.dataOut.ready.poke(true.B);  device.io.metaOut.ready.poke(true.B) }
+  def blockOutput  = { device.io.dataOut.ready.poke(false.B); device.io.metaOut.ready.poke(true.B) }
+
+  def sendHeader(src: Int, dst: Int, len: Int, isLast: Boolean = true): Unit = {
+    device.io.dataIn.bits.data.poke(hdrWord(src, dst, len).U)
+    device.io.dataIn.bits.last.poke(isLast.B)
+    device.io.dataIn.valid.poke(true.B)
+  }
+  def sendPayload(data: Long, isLast: Boolean): Unit = {
+    device.io.dataIn.bits.data.poke(data.U)
+    device.io.dataIn.bits.last.poke(isLast.B)
+  }
+  def step(n: Int = 1) = device.clock.step(n)
+
+  def expectMeta(src: Int, dst: Int, len: Int): Unit = {
+    device.io.metaOut.valid.expect(true.B)
+    device.io.metaOut.bits.srcAddr.expect(src.U)
+    device.io.metaOut.bits.dstAddr.expect(dst.U)
+    device.io.metaOut.bits.pktLen.expect(len.U)
+  }
+  def expectNoMeta        = device.io.metaOut.valid.expect(false.B)
+  def expectDataForwarded = { device.io.dataOut.valid.expect(true.B); device.io.dataIn.ready.expect(true.B) }
+  def expectInputStalled  = { device.io.dataIn.ready.expect(false.B); device.io.dataOut.valid.expect(false.B) }
+
+  "RxEngine" should "emit metadata and forward the header word" in rxTest {
+    outputsReady
+    sendHeader(src=1, dst=2, len=64)
+    expectMeta(src=1, dst=2, len=64)
+    expectDataForwarded
   }
 
-  it should "transition to CONSUME for multi-word packets" in {
-    test(new RxEngine(p, 0)) { dut =>
-      dut.io.dataOut.ready.poke(true.B)
-      dut.io.metaOut.ready.poke(true.B)
+  it should "pass payload words through in CONSUME state then reset" in rxTest {
+    outputsReady
+    sendHeader(src=3, dst=5, len=128, isLast=false)
+    expectMeta(src=3, dst=5, len=128)
+    expectDataForwarded
+    step()
 
-      // Word 0: header (not last)
-      val hdr = makeWord(src=3, dst=5, len=128, last=false)
-      dut.io.dataIn.bits.data.poke(hdr.U)
-      dut.io.dataIn.bits.last.poke(false.B)
-      dut.io.dataIn.valid.poke(true.B)
+    sendPayload(0xdeadbeefL, isLast=true)
+    step(0)
+    expectNoMeta
+    step()
 
-      // Combinationally: both outputs valid
-      dut.io.metaOut.valid.expect(true.B)
-      dut.io.metaOut.bits.srcAddr.expect(3.U)
-      dut.io.dataOut.valid.expect(true.B)
-      dut.clock.step(1)   // consume header word, transition to sConsume
-
-      // Word 1: payload (last) — in sConsume, no meta
-      dut.io.dataIn.bits.data.poke(0xdeadbeefL.U)
-      dut.io.dataIn.bits.last.poke(true.B)
-      dut.clock.step(0)   // sample combinational outputs
-      dut.io.metaOut.valid.expect(false.B)
-      dut.io.dataOut.valid.expect(true.B)
-      dut.clock.step(1)   // consume, return to sHeader
-
-      // Back in sHeader
-      dut.io.dataIn.bits.last.poke(true.B)
-      dut.io.dataIn.bits.data.poke(makeWord(src=7, dst=8, len=32).U)
-      dut.io.metaOut.valid.expect(true.B)
-      dut.io.metaOut.bits.srcAddr.expect(7.U)
-    }
+    sendHeader(src=7, dst=8, len=32)
+    expectMeta(src=7, dst=8, len=32)
   }
 
-  it should "stall when dataOut is not ready" in {
-    test(new RxEngine(p, 0)) { dut =>
-      dut.io.dataOut.ready.poke(false.B)
-      dut.io.metaOut.ready.poke(true.B)
-      dut.io.dataIn.bits.data.poke(makeWord(1, 2, 64).U)
-      dut.io.dataIn.bits.last.poke(true.B)
-      dut.io.dataIn.valid.poke(true.B)
-      dut.io.dataIn.ready.expect(false.B)
-      dut.io.dataOut.valid.expect(false.B)
-    }
+  it should "stall input when data output is back-pressured" in rxTest {
+    blockOutput
+    sendHeader(src=1, dst=2, len=64)
+    expectInputStalled
   }
 }

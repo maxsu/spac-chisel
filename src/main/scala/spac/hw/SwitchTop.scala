@@ -13,32 +13,32 @@ class SwitchTop(p: SwitchParams) extends Module {
     val tx = Vec(p.nPorts, Decoupled(new AxisWord(p)))
   })
 
-  // ── RX engines ────────────────────────────────────────────────────────
+  //   RX engines  
   val rxEngines = Seq.tabulate(p.nPorts)(i => Module(new RxEngine(p, i)))
   for (i <- 0 until p.nPorts) rxEngines(i).io.dataIn <> io.rx(i)
 
-  // ── Data path queues (RX → scheduler) ────────────────────────────────
+  //   Data path queues (RX → scheduler)  
   val dataQueues = Seq.fill(p.nPorts)(Module(new Queue(new AxisWord(p), 64)))
   for (i <- 0 until p.nPorts) dataQueues(i).io.enq <> rxEngines(i).io.dataOut
 
-  // ── Meta queues (RX → ForwardTable) ──────────────────────────────────
+  //   Meta queues (RX → ForwardTable)  
   val metaRxQ = Seq.fill(p.nPorts)(Module(new Queue(new Metadata(p), 64)))
   for (i <- 0 until p.nPorts) metaRxQ(i).io.enq <> rxEngines(i).io.metaOut
 
-  // ── Forward table ─────────────────────────────────────────────────────
+  //   Forward table  
   val fwdTable = p.hash match {
     case FullLookup    => Module(new FullLookupTable(p)): (Module with HasFwdTableIO)
     case MultiBankHash => Module(new MultiBankHashEngine(p)): (Module with HasFwdTableIO)
   }
   for (i <- 0 until p.nPorts) fwdTable.io.metaIn(i) <> metaRxQ(i).io.deq
 
-  // ── Meta queues (ForwardTable → scheduler) ────────────────────────────
+  //   Meta queues (ForwardTable → scheduler)  
   val metaFwdQ = Seq.fill(p.nPorts)(Module(new Queue(new Metadata(p), 64)))
   for (i <- 0 until p.nPorts) metaFwdQ(i).io.enq <> fwdTable.io.metaOut(i)
 
-  // ── Scheduler ─────────────────────────────────────────────────────────
+  //   Scheduler  
   val scheduler = p.sched match {
-    case RoundRobin => Module(new RRScheduler(p)): (Module with HasSchedulerIO)
+    case RoundRobin => Module(new RoundRobinScheduler(p)): (Module with HasSchedulerIO)
     case ISLIP      => Module(new ISLIPScheduler(p)): (Module with HasSchedulerIO)
     case EDRRM      => Module(new EDRRMScheduler(p)): (Module with HasSchedulerIO)
   }

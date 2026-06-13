@@ -23,11 +23,11 @@ class RxEngine(p: SwitchParams, portIdx: Int) extends Module {
     val metaOut = Decoupled(new Metadata(p))
   })
 
-  // ── FSM states ────────────────────────────────────────────────────────
+  // FSM states                                                        
   val sHeader :: sConsume :: Nil = Enum(2)
   val state = RegInit(sHeader)
 
-  // ── Extract routing fields from word-0 ───────────────────────────────
+  //  Extract routing fields from word-0                               
   // Bit-slice helpers; offsets from SwitchParams
   def extractField(word: UInt, offBits: Int, widthBits: Int): UInt =
     word(offBits + widthBits - 1, offBits)
@@ -37,7 +37,7 @@ class RxEngine(p: SwitchParams, portIdx: Int) extends Module {
   val dstAddr = extractField(word, p.dstOffBits, p.addrBits)
   val pktLen  = extractField(word, p.lenOffBits,  p.pktLenBits)
 
-  // ── Default output wiring ─────────────────────────────────────────────
+  //  Default output wiring                                             
   io.dataOut.bits  := io.dataIn.bits
   io.dataOut.valid := false.B
   io.metaOut.valid := false.B

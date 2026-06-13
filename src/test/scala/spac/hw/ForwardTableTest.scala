@@ -1,76 +1,64 @@
 package spac.hw
 
 import chisel3._
-import chisel3.util._
 import chiseltest._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class ForwardTableTest extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+  val params = SwitchParams(nPorts = 4, addrBits = 4)
+  private var device: FullLookupTable = _
 
-  val p = SwitchParams(nPorts = 4, addrBits = 4)  // 4-bit addr → 16-entry table
+  def tableTest(body: => Unit): Unit =
+    test(new FullLookupTable(params)) { dut => device = dut; silence; readyAll; body }
 
-  def makeMeta(dut: FullLookupTable, port: Int,
-               src: Int, dst: Int, bc: Boolean = false): Unit = {
-    dut.io.metaIn(port).bits.srcAddr.poke(src.U)
-    dut.io.metaIn(port).bits.dstAddr.poke(dst.U)
-    dut.io.metaIn(port).bits.dstPort.poke(0.U)
-    dut.io.metaIn(port).bits.pktLen.poke(64.U)
-    dut.io.metaIn(port).bits.broadcast.poke(bc.B)
-    dut.io.metaIn(port).bits.valid.poke(true.B)
-    dut.io.metaIn(port).valid.poke(true.B)
+  def silence  = for (port <- 0 until params.nPorts) device.io.metaIn(port).valid.poke(false.B)
+  def readyAll = for (port <- 0 until params.nPorts) device.io.metaOut(port).ready.poke(true.B)
+  def step     = device.clock.step(1)
+
+  def send(port: Int, src: Int, dst: Int, broadcast: Boolean = false): Unit = {
+    val slot = device.io.metaIn(port)
+    slot.bits.srcAddr.poke(src.U)
+    slot.bits.dstAddr.poke(dst.U)
+    slot.bits.dstPort.poke(0.U)
+    slot.bits.pktLen.poke(64.U)
+    slot.bits.broadcast.poke(broadcast.B)
+    slot.bits.valid.poke(true.B)
+    slot.valid.poke(true.B)
   }
 
-  "FullLookupTable" should "broadcast on unknown dst" in {
-    test(new FullLookupTable(p)) { dut =>
-      for (i <- 0 until p.nPorts) {
-        dut.io.metaIn(i).valid.poke(false.B)
-        dut.io.metaOut(i).ready.poke(true.B)
-      }
-      // Port 0 sends to unknown dst=7
-      makeMeta(dut, 0, src = 1, dst = 7)
-      dut.clock.step(1)
-      dut.io.metaOut(0).valid.expect(true.B)
-      dut.io.metaOut(0).bits.broadcast.expect(true.B)
-    }
+  def expectValid(port: Int)                      = device.io.metaOut(port).valid.expect(true.B)
+  def expectBroadcast(port: Int): Unit            = { expectValid(port); device.io.metaOut(port).bits.broadcast.expect(true.B) }
+  def expectUnicast(port: Int, toPort: Int): Unit = {
+    expectValid(port)
+    device.io.metaOut(port).bits.dstPort.expect(toPort.U)
+    device.io.metaOut(port).bits.broadcast.expect(false.B)
   }
 
-  it should "learn and then unicast" in {
-    test(new FullLookupTable(p)) { dut =>
-      for (i <- 0 until p.nPorts) {
-        dut.io.metaIn(i).valid.poke(false.B)
-        dut.io.metaOut(i).ready.poke(true.B)
-      }
+  behavior of "FullLookupTable"
 
-      // Step 1: Port 2 sends src=5, dst=anything → learns that addr 5 is on port 2
-      makeMeta(dut, 2, src = 5, dst = 9)
-      dut.clock.step(1)
-      dut.io.metaIn(2).valid.poke(false.B)
-
-      // Step 2: Port 0 sends to dst=5 → should hit and return port 2
-      makeMeta(dut, 0, src = 3, dst = 5)
-      dut.clock.step(1)
-      dut.io.metaOut(0).valid.expect(true.B)
-      dut.io.metaOut(0).bits.broadcast.expect(false.B)
-      dut.io.metaOut(0).bits.dstPort.expect(2.U)
-    }
+  it should "broadcast on unknown dst" in tableTest {
+    send(port=0, src=1, dst=7)
+    step
+    expectBroadcast(port=0)
   }
 
-  it should "handle all ports learning simultaneously" in {
-    test(new FullLookupTable(p)) { dut =>
-      for (i <- 0 until p.nPorts) dut.io.metaOut(i).ready.poke(true.B)
+  it should "learn a source, then unicast back to it" in tableTest {
+    send(port=2, src=5, dst=9)
+    step
+    silence
+    send(port=0, src=3, dst=5)
+    step
+    expectUnicast(port=0, toPort=2)
+  }
 
-      // All 4 ports send a packet in the same cycle → all learn
-      for (sp <- 0 until p.nPorts) makeMeta(dut, sp, src = sp, dst = (sp + 1) % p.nPorts)
-      dut.clock.step(1)
-      // Each port's src is learned; dst may or may not hit depending on order
-      for (sp <- 0 until p.nPorts) dut.io.metaOut(sp).valid.expect(true.B)
-      // Next cycle: port 0 sends to src=0 (which port 0 just learned itself)
-      for (i <- 0 until p.nPorts) dut.io.metaIn(i).valid.poke(false.B)
-      makeMeta(dut, 1, src = 99 % 16, dst = 0)  // dst=0 was learned at port 0
-      dut.clock.step(1)
-      dut.io.metaOut(1).bits.broadcast.expect(false.B)
-      dut.io.metaOut(1).bits.dstPort.expect(0.U)
-    }
+  it should "let every port learn in the same cycle" in tableTest {
+    for (port <- 0 until params.nPorts) send(port, src=port, dst=(port+1) % params.nPorts)
+    step
+    for (port <- 0 until params.nPorts) expectValid(port)
+    silence
+    send(port=1, src=99 % 16, dst=0)
+    step
+    expectUnicast(port=1, toPort=0)
   }
 }

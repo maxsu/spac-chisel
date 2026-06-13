@@ -98,7 +98,7 @@ All schedulers share the same IO: `dataIn(nPorts): Decoupled(AxisWord)`, `metaIn
 
 Digest FSM per input port (shared across all three schedulers): states `sIdle / sUnicast / sBroadcast`. On sIdle: accept meta + first data word together (both must be valid). Unicast mask = `1 << dstPort`. Broadcast mask = `~(1 << sp)`. Subsequent words (sUnicast/sBroadcast): pass through until `last`.
 
-**`RRScheduler`** (handles both NxNVOQ and SharedVOQ via `buf` param)  
+**`RoundRobinScheduler`** (handles both NxNVOQ and SharedVOQ via `buf` param)  
 TX side: per output port `dp`, rotating pointer `txNext(dp)`. Each cycle: pick `sp = if txBusy(dp) then txServing(dp) else txNext(dp)`. If `!voqEmpty(sp)(dp)` and (`txBusy(dp)` or `!spBusy(sp)`): dequeue word, emit on `dataOut(dp)`. On `last`: clear `txBusy(dp)`, clear `spBusy(sp)`, advance `txNext(dp)`. II = 1 target (pipeline the snapshot reads).
 
 **`ISLIPScheduler`** (NxNVOQ or SharedVOQ)  
@@ -133,7 +133,7 @@ class SwitchTop(p: SwitchParams) extends Module {
     case MultiBankHash => Module(new MultiBankHashEngine(p))
   }
   val scheduler = p.sched match {
-    case RoundRobin => Module(new RRScheduler(p))
+    case RoundRobin => Module(new RoundRobinScheduler(p))
     case ISLIP      => Module(new ISLIPScheduler(p))
     case EDRRM      => Module(new EDRRMScheduler(p))
   }

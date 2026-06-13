@@ -3,29 +3,12 @@ package spac.hw
 import chisel3._
 import chisel3.util._
 
-// ── Shared scheduler IO ───────────────────────────────────────────────────
+//   Shared scheduler IO  
 
-class SchedulerIO(p: SwitchParams) extends Bundle {
-  val dataIn  = Vec(p.nPorts, Flipped(Decoupled(new AxisWord(p))))
-  val metaIn  = Vec(p.nPorts, Flipped(Decoupled(new Metadata(p))))
-  val dataOut = Vec(p.nPorts, Decoupled(new AxisWord(p)))
-}
 
-// ── NxNVOQ storage ────────────────────────────────────────────────────────
-
-class NxNStorage(p: SwitchParams) extends Module {
+class NxNVOQBuffer(p: SwitchParams) extends Module {
   val N = p.nPorts; val D = p.qDepth
-  val io = IO(new Bundle {
-    val enqData = Input(Vec(N, new AxisWord(p)))
-    val enqMask = Input(Vec(N, UInt(N.W)))
-    val enqEn   = Input(Vec(N, Bool()))
-    val deqSp   = Input(Vec(N, UInt(p.portBits.W)))
-    val deqEn   = Input(Vec(N, Bool()))
-    val deqData = Output(Vec(N, new AxisWord(p)))
-    val deqOk   = Output(Vec(N, Bool()))
-    val empty   = Output(Vec(N, Vec(N, Bool())))
-    val full    = Output(Vec(N, Vec(N, Bool())))
-  })
+  val io = IO(new NxNVOQIO(p))
 
   val mem  = Reg(Vec(N, Vec(N, Vec(D, new AxisWord(p)))))
   val head = RegInit(VecInit.fill(N, N)(0.U(p.qDepthLog.W)))
@@ -65,17 +48,8 @@ class NxNStorage(p: SwitchParams) extends Module {
   }
 }
 
-// ── Shared digest FSM ─────────────────────────────────────────────────────
-
 class DigestFSM(p: SwitchParams, sp: Int) extends Module {
-  val io = IO(new Bundle {
-    val dataIn  = Flipped(Decoupled(new AxisWord(p)))
-    val metaIn  = Flipped(Decoupled(new Metadata(p)))
-    val word    = Output(new AxisWord(p))
-    val mask    = Output(UInt(p.nPorts.W))
-    val enq     = Output(Bool())
-    val anyFull = Input(Bool())
-  })
+  val io = IO(new DigestIO(p))
 
   val sIdle :: sUnicast :: sBroadcast :: Nil = Enum(3)
   val state = RegInit(sIdle)
@@ -119,13 +93,11 @@ class DigestFSM(p: SwitchParams, sp: Int) extends Module {
   }
 }
 
-// ── RoundRobinScheduler ───────────────────────────────────────────────────
-
-class RRScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
+class RoundRobinScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   val io = IO(new SchedulerIO(p))
   val N  = p.nPorts
 
-  val storage = Module(new NxNStorage(p))
+  val storage = Module(new NxNVOQBuffer(p))
   val digest  = Seq.tabulate(N)(sp => Module(new DigestFSM(p, sp)))
 
   for (sp <- 0 until N) {
@@ -179,13 +151,11 @@ class RRScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   }
 }
 
-// ── ISLIPScheduler ────────────────────────────────────────────────────────
-
 class ISLIPScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   val io = IO(new SchedulerIO(p))
   val N  = p.nPorts
 
-  val storage = Module(new NxNStorage(p))
+  val storage = Module(new NxNVOQBuffer(p))
   val digest  = Seq.tabulate(N)(sp => Module(new DigestFSM(p, sp)))
 
   for (sp <- 0 until N) {
@@ -204,7 +174,7 @@ class ISLIPScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   val txServing = Reg(Vec(N, UInt(p.portBits.W)))
   val spBusy    = RegInit(VecInit.fill(N)(false.B))
 
-  // ── Grant: for each dp, pick a sp ────────────────────────────────────
+  //   Grant: for each dp, pick a sp  
   val grant = Wire(Vec(N, UInt((p.portBits+1).W)))   // N = no grant
   for (dp <- 0 until N) {
     grant(dp) := N.U
@@ -227,7 +197,7 @@ class ISLIPScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
     }
   }
 
-  // ── Accept: for each sp, pick one granted dp ─────────────────────────
+  //   Accept: for each sp, pick one granted dp  
   val accept = Wire(Vec(N, UInt((p.portBits+1).W)))
   for (sp <- 0 until N) {
     accept(sp) := N.U
@@ -244,7 +214,7 @@ class ISLIPScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
     }
   }
 
-  // ── Transmit ─────────────────────────────────────────────────────────
+  //   Transmit  
   for (dp <- 0 until N) {
     storage.io.deqSp(dp) := 0.U
     storage.io.deqEn(dp) := false.B
@@ -275,13 +245,11 @@ class ISLIPScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   }
 }
 
-// ── EDRRMScheduler ────────────────────────────────────────────────────────
-
 class EDRRMScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   val io = IO(new SchedulerIO(p))
   val N  = p.nPorts
 
-  val storage = Module(new NxNStorage(p))
+  val storage = Module(new NxNVOQBuffer(p))
   val digest  = Seq.tabulate(N)(sp => Module(new DigestFSM(p, sp)))
 
   for (sp <- 0 until N) {
@@ -298,7 +266,7 @@ class EDRRMScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
   val rrOut    = RegInit(VecInit.fill(N)(0.U(p.portBits.W)))
   val voqCount = RegInit(VecInit.fill(N)(VecInit.fill(N)(0.U((p.qDepthLog+1).W))))
 
-  // ── Request ──────────────────────────────────────────────────────────
+  //   Request  
   val req = Wire(Vec(N, UInt((p.portBits+1).W)))
   for (sp <- 0 until N) {
     req(sp) := N.U
@@ -312,7 +280,7 @@ class EDRRMScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
     }
   }
 
-  // ── Grant ─────────────────────────────────────────────────────────────
+  //   Grant  
   val grantEn  = Wire(Vec(N, Bool()))
   val grantSp  = Wire(Vec(N, UInt(p.portBits.W)))
   for (dp <- 0 until N) {
@@ -329,7 +297,7 @@ class EDRRMScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
     }
   }
 
-  // ── Transmit + pointer update ─────────────────────────────────────────
+  //   Transmit + pointer update  
   for (dp <- 0 until N) {
     storage.io.deqSp(dp) := 0.U
     storage.io.deqEn(dp) := false.B
