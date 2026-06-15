@@ -1,10 +1,21 @@
-target/
-project/target/
-project/project/
+# Mill
+out/
+.mill-jvm-opts
+
+# Generated Verilog
 generated/
+
+# Test artifacts
 *.vcd
 test_run_dir/
+
+# Metals / IDE
 .bsp/
 .metals/
 .bloop/
 *.class
+
+
+# Misc
+/project/target/
+/target/
