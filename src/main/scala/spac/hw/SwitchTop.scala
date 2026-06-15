@@ -2,6 +2,7 @@ package spac.hw
 
 import chisel3._
 import chisel3.util._
+import _root_.circt.stage.ChiselStage
 
 // Traits to allow structural typing for the two module variants
 trait HasFwdTableIO { val io: FwdTableIO }
@@ -51,7 +52,9 @@ class SwitchTop(p: SwitchParams) extends Module {
 
 object SwitchTop extends App {
   val p = SwitchParams()
-  (new chisel3.stage.ChiselStage).emitVerilog(new SwitchTop(p),
-    Array("--target-dir", "generated"))
-  println("[SPAC] Verilog emitted to generated/SwitchTop.v")
+  ChiselStage.emitSystemVerilogFile(
+    gen = new SwitchTop(p),
+    args = Array("--target-dir", "generated"),
+  )
+  println("[SPAC] SystemVerilog emitted to generated/")
 }

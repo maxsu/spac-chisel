@@ -120,10 +120,8 @@ class MultiBankHashEngine(p: SwitchParams) extends Module with HasFwdTableIO {
       }
     }
     when(saveGrantEn) {
-      val srcKey = MuxLookup(saveGrant, 0.U,
-        (0 until p.nPorts).map(i => i.U -> buf(i).srcAddr(p.hashBits-1,0)))
-      val srcAddr = MuxLookup(saveGrant, 0.U,
-        (0 until p.nPorts).map(i => i.U -> buf(i).srcAddr))
+      val srcKey = MuxLookup(saveGrant, 0.U)((0 until p.nPorts).map(i => i.U -> buf(i).srcAddr(p.hashBits-1,0)))
+      val srcAddr = MuxLookup(saveGrant, 0.U)((0 until p.nPorts).map(i => i.U -> buf(i).srcAddr))
       mem(b).write(srcKey, Cat(1.U(1.W), srcAddr, saveGrant(p.portBits-1,0)))
       for (sp <- 0 until p.nPorts) {
         when(saveGrant === sp.U) { saved(sp) := true.B }
@@ -146,8 +144,7 @@ class MultiBankHashEngine(p: SwitchParams) extends Module with HasFwdTableIO {
         }
       }
     }
-    val dstKey = MuxLookup(readGrant, 0.U,
-      (0 until p.nPorts).map(i => i.U -> buf(i).dstAddr(p.hashBits-1,0)))
+    val dstKey = MuxLookup(readGrant, 0.U)((0 until p.nPorts).map(i => i.U -> buf(i).dstAddr(p.hashBits-1,0)))
     val memOut         = mem(b).read(dstKey)
     val readGrantReg   = RegNext(readGrant, 0.U)
     val readGrantEnReg = RegNext(readGrantEn, false.B)

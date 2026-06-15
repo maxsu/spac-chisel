@@ -33,10 +33,8 @@ class NxNVOQBuffer(p: SwitchParams) extends Module {
 
   for (dp <- 0 until N) {
     // Use MuxLookup so deqSp (UInt) can index the register array
-    io.deqData(dp) := MuxLookup(io.deqSp(dp), mem(0)(dp)(0),
-      (0 until N).map(sp => sp.U -> mem(sp)(dp)(head(sp)(dp))))
-    io.deqOk(dp)   := MuxLookup(io.deqSp(dp), false.B,
-      (0 until N).map(sp => sp.U -> !io.empty(sp)(dp)))
+    io.deqData(dp) := MuxLookup(io.deqSp(dp), mem(0)(dp)(0))((0 until N).map(sp => sp.U -> mem(sp)(dp)(head(sp)(dp))))
+    io.deqOk(dp)   := MuxLookup(io.deqSp(dp), false.B)((0 until N).map(sp => sp.U -> !io.empty(sp)(dp)))
 
     when(io.deqEn(dp) && io.deqOk(dp)) {
       for (sp <- 0 until N) {
@@ -124,8 +122,8 @@ class RoundRobinScheduler(p: SwitchParams) extends Module with HasSchedulerIO {
 
   for (dp <- 0 until N) {
     val sp     = Mux(txBusy(dp), txServing(dp), txNext(dp))
-    val spBusySp = MuxLookup(sp, false.B, (0 until N).map(i => i.U -> spBusy(i)))
-    val emptySpDp = MuxLookup(sp, true.B, (0 until N).map(i => i.U -> storage.io.empty(i)(dp)))
+    val spBusySp = MuxLookup(sp, false.B)((0 until N).map(i => i.U -> spBusy(i)))
+    val emptySpDp = MuxLookup(sp, true.B)((0 until N).map(i => i.U -> storage.io.empty(i)(dp)))
     val canSend = (txBusy(dp) || !spBusySp) && !emptySpDp
 
     storage.io.deqSp(dp) := sp

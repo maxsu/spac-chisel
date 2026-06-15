@@ -1,17 +1,20 @@
 package spac.hw
 
 import chisel3._
-import chiseltest._
+import chisel3.simulator.scalatest.ChiselSim
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class RxEngineTest extends AnyFlatSpec with ChiselScalatestTester with Matchers {
+class RxEngineTest extends AnyFlatSpec with ChiselSim with Matchers {
   val p = SwitchParams(nPorts=4, addrBits=8, dataBits=512,
                        dstOffBits=128, srcOffBits=136, lenOffBits=176)
   private var device: RxEngine = _
 
   def rxTest(body: => Unit): Unit =
-    test(new RxEngine(p, 0)) { dut => device = dut; body }
+    simulate(new RxEngine(p, 0)) { dut => 
+      device = dut
+      body 
+    }
 
   private def hdrWord(src: Int, dst: Int, len: Int): BigInt = {
     var w = BigInt(0)
