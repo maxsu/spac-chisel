@@ -4,6 +4,22 @@ Target: ~2100 lines. One repo, one build tool (sbt). Three layers: hardware (Chi
 
 ---
 
+## Status: Milestone 1 - Hardware Core Complete
+
+| Module | Status | Notes |
+|--------|--------|-------|
+| `Types.scala` — params, bundles | ✅ | `SwitchParams` case class supports all device axes |
+| `RxEngine.scala` — per-port parser FSM | ✅ | 2-state FSM (II=1), basic back-pressure |
+| `ForwardTable.scala` — Forwarding Tables | ✅ | FullLookup (II=1); MultiBankHash (II≈3) |
+| `Schedulers.scala` — RR, iSLIP, EDRRM | ✅ | RR, iSLIP, EDRRM (RTL + tested) |
+| `SwitchTop.scala` — dataflow composition | ✅ | Top level device definition |
+| **Tests** — 12 component & device tests | ✅ | RxEngine → ForwardTable → SwitchTop |
+| DSE layer (StatSim, DSEEngine, FeatureExtractor) | 🔜 Milestone 2 | |
+| Protocol layer (ProtocolSpec, PacketHPPEmitter) | 🔜 Milestone 3 | |
+
+
+
+
 ## 0. Build Layout
 
 ```
