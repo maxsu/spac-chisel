@@ -2,19 +2,6 @@
 
 Chisel/Scala replication of the SPAC network switch paper (arXiv 2604.21881v1). Replaces the Python + C++ HLS switch core with a hardware description in Chisel 7.
 
-## Status: Milestone 1 - Hardware Core Complete
-
-| Module | Status | Notes |
-|--------|--------|-------|
-| `Types.scala` — params, bundles | ✅ | `SwitchParams` case class supports all device axes |
-| `RxEngine.scala` — per-port parser FSM | ✅ | 2-state FSM (II=1), basic back-pressure |
-| `ForwardTable.scala` — Forwarding Tables | ✅ | FullLookup (II=1); MultiBankHash (II≈3) |
-| `Schedulers.scala` — RR, iSLIP, EDRRM | ✅ | RR, iSLIP, EDRRM (RTL + tested) |
-| `SwitchTop.scala` — dataflow composition | ✅ | Top level device definition |
-| **Tests** — 12 component & device tests | ✅ | RxEngine → ForwardTable → SwitchTop |
-| DSE layer (StatSim, DSEEngine, FeatureExtractor) | 🔜 Milestone 2 | |
-| Protocol layer (ProtocolSpec, PacketHPPEmitter) | 🔜 Milestone 3 | |
-
 ## Architecture
 
 ```mermaid
@@ -55,13 +42,32 @@ Install [Scala CLI](https://scala-cli.virtuslab.org/install)
 
 ```bash
 # Linux
-curl -sSLf https://scala-cli.virtuslab.org/get | sh
+curl -fL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d > scala-cli
+chmod +x scala-cli
+mv scala-cli /home/$USER/.local/bin/scala-cli
 
 # OSX
 brew install Virtuslab/scala-cli/scala-cli
 
 # Windows
 scoop install scala-cli
+```
+
+### Verilator
+
+```bash
+# Arch
+sudo pacman -S verilator
+
+# Ubuntu/Debian
+sudo apt install verilator
+
+# OSX
+brew install verilator
+
+# Windows - Via WSL 2 Ubuntu
+sudo apt install verilator 
+
 ```
 
 ## Building
@@ -100,5 +106,3 @@ ChiselStage.emitSystemVerilogFile(
   args = Array("--target-dir", "generated"),
 )
 ```
-
-See `SPAC_chisel_spec.md` for a full implementation specification.

@@ -28,16 +28,17 @@ class SwitchTopTest extends AnyFlatSpec with ChiselSim with Matchers {
   }
 
   def send(rxPort: Int, src: Int, dst: Int): Unit = {
+    val port = device.io.rx(rxPort)
     val addrMask = (1 << p.addrBits) - 1
     var word = BigInt(0)
     word |= BigInt(dst & addrMask) << p.dstOffBits
     word |= BigInt(src & addrMask) << p.srcOffBits
     word |= BigInt(1)              << p.lenOffBits
-    device.io.rx(rxPort).bits.data.poke(word.U)
-    device.io.rx(rxPort).bits.last.poke(true.B)
-    device.io.rx(rxPort).valid.poke(true.B)
-    device.clock.step(1)
-    device.io.rx(rxPort).valid.poke(false.B)
+    port.bits.data.poke(word.U)
+    port.bits.last.poke(true.B)
+    port.valid.poke(true.B)
+    step(1)
+    port.valid.poke(false.B)
   }
 
   def step(n: Int) = device.clock.step(n)
@@ -47,7 +48,7 @@ class SwitchTopTest extends AnyFlatSpec with ChiselSim with Matchers {
     for (_ <- 0 until cycles) {
       for (port <- 0 until p.nPorts)
         if (device.io.tx(port).valid.peek().litToBoolean) counts(port) += 1
-      device.clock.step(1)
+      step(1)
     }
     counts.toMap
   }
