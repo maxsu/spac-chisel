@@ -20,7 +20,7 @@ src/test/scala/
 
 ---
 
-## 1. Shared Types — `spac/hw/Types.scala` (~40 lines)
+## 1. Shared Types — `spac/hw/Types.scala`
 
 ```scala
 sealed trait HashType
@@ -60,7 +60,7 @@ All inter-module streams: `Decoupled(AxisWord)` for data, `Decoupled(Metadata)` 
 
 ## 2. Hardware Layer — `spac/hw/`
 
-### 2.1 `RxEngine.scala` (~55 lines)
+### 2.1 `RxEngine.scala`
 
 One instance per port. Two-state FSM: `sHeader` / `sConsume`.
 
@@ -71,7 +71,7 @@ Field offsets come from `SwitchParams` (set by protocol layer at elaboration tim
 
 > ⚠️ Offset params must be `val`s in `SwitchParams`, populated by `ProtocolSpec` before `SwitchTop` is elaborated.
 
-### 2.2 `ForwardTable.scala` (~120 lines total, two `Module`s)
+### 2.2 `ForwardTable.scala`
 
 **`FullLookupTable`**  
 State: `fwd = RegInit(VecInit(Seq.fill(1<<addrBits)(0.U((1+portBits).W))))` — fully registered, fully partitioned.  
@@ -117,7 +117,7 @@ Single-iteration two-phase, exhaustive service:
 
 II = 2 target.
 
-### 2.5 `SwitchTop.scala` (~65 lines)
+### 2.5 `SwitchTop.scala`
 
 ```scala
 class SwitchTop(p: SwitchParams) extends Module {
@@ -144,8 +144,7 @@ class SwitchTop(p: SwitchParams) extends Module {
 
 ---
 
-## 3. Test Layer — `spac/hw/SwitchTopTest.scala` (~120 lines)
-
+## 3. Test Layer — `spac/hw/SwitchTopTest.scala`
 Use `chiseltest` (`chisel3.tester`).
 
 **Test 1 — Unicast loopback** (FullLookup, iSLIP, 4-port): inject packet src=0→dst=1. Verify emerges on tx(1) within 20 cycles, not on tx(0/2/3).
@@ -162,7 +161,7 @@ Use `chiseltest` (`chisel3.tester`).
 
 ## 4. DSE Layer — `spac/dse/`
 
-### 4.1 `TraceTypes.scala` (~20 lines)
+### 4.1 `TraceTypes.scala`
 
 ```scala
 case class TraceEntry(timeNs: Double, src: Int, dst: Int, sizeBytes: Int)
@@ -170,7 +169,7 @@ case class TraceFeatures(idc: Double, hAddr: Double, sMin: Int)
 case class TopologyLink(nodeA: String, portA: Int, nodeB: String, portB: Int)
 ```
 
-### 4.2 `FeatureExtractor.scala` (~70 lines)
+### 4.2 `FeatureExtractor.scala`
 
 ```scala
 object FeatureExtractor {
@@ -184,7 +183,7 @@ object FeatureExtractor {
 
 All O(N). No external deps.
 
-### 4.3 `ResourceModel.scala` (~90 lines)
+### 4.3 `ResourceModel.scala`
 
 Polynomial evaluators, one function per (module × resource type). Coefficients are `val`s — easy to replace when new synthesis data arrives.
 
@@ -223,7 +222,7 @@ def fitQuadratic(data: Seq[(Int, Int)]): (Double, Double, Double) = {
 }
 ```
 
-### 4.4 `LatencyModel.scala` (~60 lines)
+### 4.4 `LatencyModel.scala`
 
 Tables indexed by `(SchedType, HashType, nPorts)`. Lookup, then linear interpolation for off-table port counts.
 
@@ -245,7 +244,7 @@ object LatencyModel {
 }
 ```
 
-### 4.5 `StatSim.scala` (~350 lines)
+### 4.5 `StatSim.scala`
 
 Cycle-accurate event-driven simulator. No external dep; uses Scala `mutable.PriorityQueue`.
 
@@ -280,7 +279,7 @@ case class SimStats(
 
 Timing model: packet arrives, waits pipeline latency (from `LatencyModel`), then contends in scheduler. Scheduler step implements exact same grant/accept logic as RTL spec above. One `step()` = one clock cycle.
 
-### 4.6 `DSEEngine.scala` (~180 lines)
+### 4.6 `DSEEngine.scala`
 
 ```scala
 object DSEEngine {
@@ -334,7 +333,7 @@ object DSEEngine {
 }
 ```
 
-### 4.7 `TopologyParser.scala` + `TraceParser.scala` (~60 + 80 lines)
+### 4.7 `TopologyParser.scala` + `TraceParser.scala`
 
 CSV readers. `TopologyParser` builds port-mapping from `single_switch_8hosts.csv` format (columns: `node_a,port_a,node_b,port_b`). `TraceParser` reads `time,src_addr,dst_addr,header_size,body_size,trace_id` format (exact SPAC trace schema).
 
@@ -344,7 +343,7 @@ CSV readers. `TopologyParser` builds port-mapping from `single_switch_8hosts.csv
 
 Replaces the SPAC C++ DSL + net-blocks for the hardware side. Does **not** generate a runtime C driver (that's net-blocks' job and out of scope for hardware replication).
 
-### 5.1 `ProtocolSpec.scala` (~80 lines)
+### 5.1 `ProtocolSpec.scala`
 
 ```scala
 sealed trait SemanticTag
@@ -369,36 +368,13 @@ case class CompiledLayout(fields: Seq[FieldLayout], totalBits: Int) {
 }
 ```
 
-### 5.2 `PacketHPPEmitter.scala` (~60 lines)
+### 5.2 `PacketHPPEmitter.scala`
 
 Takes `CompiledLayout` + `SwitchParams`, writes `packet.hpp` with `constexpr` offsets and `get_src` / `get_dst` / `get_pkt_len` inlines. Output is byte-for-byte compatible with what `demo_clean` generates.
 
-### 5.3 `CommonHPPPatcher.scala` (~40 lines)
+### 5.3 `CommonHPPPatcher.scala`
 
 Reads template `common.hpp`, regex-replaces `NUM_PORTS`, `HASH_MODULE_TYPE`, `BUFFER_TYPE`, `SCHEDULER_TYPE`, `MAX_QUEUE_DEPTH_LOG`, `HASH_BITS`. Same logic as `hls_copy.cpp` but in Scala. Output feeds into Vitis HLS synthesis unchanged.
-
----
-
-## 6. Line Budget Summary
-
-| File(s) | Est. lines |
-|---------|----------:|
-| `Types.scala` | 40 |
-| `RxEngine.scala` | 55 |
-| `ForwardTable.scala` | 120 |
-| `Schedulers.scala` (RR + iSLIP + EDRRM) | 400 |
-| `SwitchTop.scala` | 65 |
-| `SwitchTopTest.scala` | 120 |
-| `TraceTypes.scala` | 20 |
-| `FeatureExtractor.scala` | 70 |
-| `ResourceModel.scala` + `FitCoeffs.scala` | 130 |
-| `LatencyModel.scala` | 60 |
-| `StatSim.scala` | 350 |
-| `DSEEngine.scala` | 180 |
-| `TraceParser.scala` + `TopologyParser.scala` | 140 |
-| `ProtocolSpec.scala` | 80 |
-| `PacketHPPEmitter.scala` + `CommonHPPPatcher.scala` | 100 |
-| **Total** | **~1930** |
 
 ---
 

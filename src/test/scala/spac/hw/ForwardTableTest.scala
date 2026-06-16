@@ -10,7 +10,7 @@ class ForwardTableTest extends AnyFlatSpec with ChiselSim with Matchers {
   private var device: FullLookupTable = _
 
   def tableTest(body: => Unit): Unit =
-    simulate(new FullLookupTable(p)) { dut =>
+    simulate(new FullLookupTable(params)) { dut =>
       device = dut
       silence
       readyAll

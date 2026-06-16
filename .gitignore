@@ -1,21 +1,8 @@
-# Mill
-out/
-.mill-jvm-opts
-
 # Generated Verilog
 generated/
 
-# Test artifacts
-*.vcd
-test_run_dir/
-
-# Metals / IDE
-.bsp/
-.metals/
-.bloop/
-*.class
-
-
-# Misc
+# Scala-CLI
 /project/target/
-/target/
+.bsp/
+/build/
+.scala-build/

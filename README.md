@@ -51,42 +51,39 @@ flowchart TD
 
 ### Scala CLI
 
-Install [Scala CLI](https://scala-cli.virtuslab.org/install) — it manages everything else including the JDK, Chisel, and firtool:
+Install [Scala CLI](https://scala-cli.virtuslab.org/install)
 
 ```bash
 # Linux
 curl -sSLf https://scala-cli.virtuslab.org/get | sh
 
-# macOS (Homebrew)
+# OSX
 brew install Virtuslab/scala-cli/scala-cli
 
-# Windows (Scoop)
+# Windows
 scoop install scala-cli
 ```
-
-Verify: `scala-cli version`
 
 ## Building
 
 ```bash
-# Emit SystemVerilog for the default 4-port config
-scala-cli run src/ --main-class spac.hw.SwitchTop
-# Output in generated/
+scala-cli build .
+# [SPAC] => SystemVerilog emitted to generated/
 ```
 
 ## Testing
 
 ```bash
 # Run tests
-scala-cli test src/
+scala-cli test .
 
 # Run a suite
-scala-cli test src/ -- spac.hw.RxEngineTest
-scala-cli test src/ -- spac.hw.SwitchTopTest
+scala-cli test . --test-only spac.hw.RxEngineTest
+scala-cli test . --test-only spac.hw.SwitchTopTest
 
 # Run tests matching a name pattern
-scala-cli test src/ -- spac.hw.SwitchTopTest -z iSLIP
-scala-cli test src/ -- spac.hw.SwitchTopTest -z EDRRM
+scala-cli test . --test-only spac.hw.SwitchTopTest -- -z iSLIP
+scala-cli test . --test-only spac.hw.SwitchTopTest -- -z EDRRM
 ```
 
 ## Generated SystemVerilog
@@ -104,5 +101,4 @@ ChiselStage.emitSystemVerilogFile(
 )
 ```
 
-## Spec reference
 See `SPAC_chisel_spec.md` for a full implementation specification.
