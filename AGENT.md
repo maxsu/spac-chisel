@@ -14,7 +14,7 @@ mv scala-cli /home/$USER/.local/bin/scala-cli
 
 ```bash
 # Compile
-scala-cli build .
+scala-cli compile .
 
 # Run all tests
 scala-cli test .
