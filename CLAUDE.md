@@ -43,6 +43,13 @@ Running tests produces:
 
 This is because Chisel 7 currently targets Scala 2.13. This warning may be ignored.
 
+### JVM SSL/PKIX errors during scala-cli compile or test
+
+If you see `PKIX path building failed` when scala-cli tries to resolve dependencies,
+the JVM's truststore (separate from the OS one) doesn't trust this environment's
+egress proxy CA. `claude-boot.sh` already imports it — if the error persists, check
+whether `/usr/local/share/ca-certificates/*.crt` actually contains the proxy's cert.
+
 ## Project Layout
 
 ```
