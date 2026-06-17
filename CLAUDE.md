@@ -7,15 +7,16 @@ Chisel 7 hardware description of the SPAC network switch (arXiv 2604.21881v1).
 Run once at the start of each session:
 
 ```bash
-source scripts/claude-boot.sh
+bash scripts/claude-boot.sh
 ```
 
-This installs scala-cli and Verilator, and fixes JVM SSL for the sandbox egress proxy.
+This installs scala-cli and Verilator. 
+Note: $HOME/.local/bin is already on your path
 
 ## Build & Test
 
 ```bash
-# Compile
+# Emit Verilog
 scala-cli compile .
 
 # Run all tests
@@ -45,10 +46,12 @@ This is because Chisel 7 currently targets Scala 2.13. This warning may be ignor
 ## Project Layout
 
 ```
-project.scala         # scala-cli deps
+AGENT.md              # Agent quick start
+README.md             # Full project readme
 SPAC_chisel_spec.md   # V1-Spec
+project.scala         # scala-cli project deps
 scripts/
-  claude-boot.sh      # Session setup (deps + SSL fix)
+  claude-boot.sh      # Session setup
 src/
   Types.scala         # SwitchParams, AXI bundles, enums
   RxEngine.scala      # Per-port 2-state parser FSM
@@ -82,8 +85,7 @@ the TX ports.
 ## Tech Stack
 
 - Scala 2.13.18 →  Chisel 7.13.0 → CIRCT/firtool
-- ChiselSim (svsim) + ScalaTest for tests
-- Verilator required for simulation backend
+- Testing via ChiselSim → svsim → Verilator
 
 ## Milestones
 
