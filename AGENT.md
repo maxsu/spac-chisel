@@ -40,8 +40,6 @@ Running tests produces:
 
 This is because Chisel 7 currently targets Scala 2.13. This warning may be ignored.
 
-### asd
-
 ### Note for Claude (AI assistant) running in a sandboxed environment
 
 scala-cli downloads dependencies via Coursier, which uses the JVM's truststore. In sandboxed environments the JVM truststore does not include the host's CA certificates, causing SSL handshake failures. Fix by importing system certs:
