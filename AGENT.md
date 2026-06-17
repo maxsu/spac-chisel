@@ -2,13 +2,15 @@
 
 Chisel 7 hardware description of the SPAC network switch (arXiv 2604.21881v1).
 
-## Deps
+## Boot
+
+Run once at the start of each session:
 
 ```bash
-curl -fL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d > scala-cli
-chmod +x scala-cli
-mv scala-cli /home/$USER/.local/bin/scala-cli
+source scripts/claude-boot.sh
 ```
+
+This installs scala-cli and Verilator, and fixes JVM SSL for the sandbox egress proxy.
 
 ## Build & Test
 
@@ -40,35 +42,13 @@ Running tests produces:
 
 This is because Chisel 7 currently targets Scala 2.13. This warning may be ignored.
 
-### Note for Claude (AI assistant) running in a sandboxed environment
-
-scala-cli downloads dependencies via Coursier, which uses the JVM's truststore. In sandboxed environments the JVM truststore does not include the host's CA certificates, causing SSL handshake failures. Fix by importing system certs:
-
-```bash
-# Find your Java cacerts (path may vary)
-JAVA_CACERTS=$(find /usr/lib/jvm -name cacerts | head -1)
-
-# Import all system certs
-for cert in /etc/ssl/certs/*.crt; do
-  alias=$(basename "$cert" .crt | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | cut -c1-30)
-  keytool -importcert -noprompt -trustcacerts \
-    -keystore "$JAVA_CACERTS" -storepass changeit \
-    -alias "$alias" -file "$cert" 2>/dev/null
-done
-
-# Then run tests with the truststore explicitly set
-JAVA_OPTS="-Djavax.net.ssl.trustStore=$JAVA_CACERTS -Djavax.net.ssl.trustStorePassword=changeit" \
-  scala-cli test . --server=false
-```
-
-Also pass `--server=false` to skip Bloop (which requires downloading via SSL before any project deps are fetched).
-
-
 ## Project Layout
 
 ```
 project.scala         # scala-cli deps
 SPAC_chisel_spec.md   # V1-Spec
+scripts/
+  claude-boot.sh      # Session setup (deps + SSL fix)
 src/
   Types.scala         # SwitchParams, AXI bundles, enums
   RxEngine.scala      # Per-port 2-state parser FSM
