@@ -13,6 +13,24 @@ bash scripts/claude-boot.sh
 This installs scala-cli and Verilator. 
 Note: $HOME/.local/bin is already on your path
 
+### Quiet-tooling convention
+
+`claude-boot.sh` and the `scala-cli` wrapper it installs are deliberately
+quiet: routine output (installs, downloads) are surfaced only if the command actually fails. 
+This skips thousands of lines that cost tokens and attention for not agent-relevant signal.
+
+All agent tooling in this repo should follow quiet success semantics.
+- If a filter (e.g. a grep pattern) decides what's "noise," call out what it
+  drops and why, so a future change to the underlying tool's output format
+  doesn't silently let a real error blend into the false negatives. Re-test
+  the filter against a fresh failure case after introducing or editing it,
+  not just against a success case — a session in this repo found one filter
+  whose first version still let all the noise through despite passing on
+  the success run it was first checked against.
+- Prefer "last N lines on failure" over fully custom error parsing, so
+  unexpected failure modes aren't accidentally swallowed by an overly
+  specific filter.
+
 ## Build & Test
 
 ```bash
