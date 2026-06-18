@@ -17,8 +17,8 @@ quiet() {
 		echo "FAILED: $desc"
 		echo "--- last $peek lines of output ---"
 		tail -n "$peek" "$log"
+		echo "See full output in $log"
 	fi
-	echo "See full output in $log"
 	return "$status"
 }
 
@@ -38,15 +38,20 @@ for cert in /usr/local/share/ca-certificates/*.crt; do
 	alias=$(basename "$cert" .crt | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | cut -c1-30)
 	# On re-run, clear aliases to avoid "alias already exists" error.
 	keytool -delete -noprompt -keystore "$JAVA_CACERTS" -storepass changeit -alias "$alias" >/dev/null 2>&1 || true
-	quiet "import cert $alias" keytool -importcert -noprompt -trustcacerts \
-		-keystore "$JAVA_CACERTS" -storepass changeit -alias "$alias" -file "$cert"
+	echo "import cert $alias"
+	keytool -importcert -noprompt -trustcacerts \
+		-keystore "$JAVA_CACERTS" -storepass changeit -alias "$alias" -file "$cert" >/dev/null 2>&1
 	cert_count=$((cert_count + 1))
 done
 echo "Imported $cert_count cert(s) into JVM truststore."
 
 echo "Wrap scala-cli"
-cat >"$HOME/.local/bin/scala-cli" <<'WRAPPER'
 
+# Note: Claude's local sandbox PATH includes .local/bin.
+# But we still need to create it 💪
+mkdir -p "$HOME/.local/bin"
+
+cat >"$HOME/.local/bin/scala-cli" <<'WRAPPER'
 #!/bin/sh
 NUISANCE_PATTERNS='^(Downloading|Downloaded|Failed to download) https?://'
 JAVA_CACERTS=$(find /usr/lib/jvm -name cacerts 2>/dev/null | head -1)
@@ -68,7 +73,6 @@ this_many=$(( (count - kept) / 4 ))
 echo "Saved about $this_many tokens!"
 echo "Full output in $log"
 exit "$status"
-
 WRAPPER
 
 chmod +x "$HOME/.local/bin/scala-cli"
