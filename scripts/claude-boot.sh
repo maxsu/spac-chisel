@@ -5,6 +5,10 @@ url=https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x8
 dest="$HOME/.local/bin/scala-cli.real"
 peek=40
 
+# Note: Claude's local sandbox PATH includes .local/bin.
+# But we still need to create it 💪
+mkdir -p "$HOME/.local/bin"
+
 quiet() {
 	local desc="$1"
 	shift
@@ -46,10 +50,6 @@ done
 echo "Imported $cert_count cert(s) into JVM truststore."
 
 echo "Wrap scala-cli"
-
-# Note: Claude's local sandbox PATH includes .local/bin.
-# But we still need to create it 💪
-mkdir -p "$HOME/.local/bin"
 
 cat >"$HOME/.local/bin/scala-cli" <<'WRAPPER'
 #!/bin/sh
