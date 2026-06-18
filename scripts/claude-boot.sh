@@ -2,25 +2,7 @@
 set -euo pipefail
 
 CERTS=/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts
-
-if [ ! -f $CERTS ]; then
-	echo FAILED cacerts not at expected path: $CERTS
-	exit 1
-fi
-
-ls -1 /usr/local/share/ca-certificates/*.crt
-for cert in /usr/local/share/ca-certificates/*.crt; do
-	alias=$(basename "$cert" .crt)
-	if ! [[ $alias =~ ^[a-z0-9-]{1,30}$ ]]; then
-		echo FAILED invalid alias format: "$alias"
-		exit 1
-	fi
-	keytool -delete -noprompt -keystore "$CERTS" -storepass changeit -alias "$alias" >/dev/null 2>&1 || true
-	if ! keytool -importcert -noprompt -trustcacerts -keystore "$CERTS" -storepass changeit -alias $alias -file $cert >/dev/null 2>&1; then
-		echo FAILED $alias
-		exit 1
-	fi
-done
+ln -sf /etc/ssl/certs/java/cacerts $CERTS
 
 apt-get update -qq
 apt-get install -qq verilator
@@ -38,7 +20,7 @@ WRAPPER
 chmod +x scala-cli
 scala-cli --version
 
-cd /root/spac-chisel
+cd /home/claude/spac-chisel
 echo Warming cache
 scala-cli compile . >/dev/null 2>&1
 
