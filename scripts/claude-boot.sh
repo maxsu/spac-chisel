@@ -13,6 +13,7 @@ shh() {
 
 echo Copying Java cacerts
 CERTS=/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts
+rm -f $CERTS
 cp /etc/ssl/certs/java/cacerts $CERTS
 
 echo Installing dependencies
