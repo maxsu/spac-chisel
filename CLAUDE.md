@@ -10,23 +10,23 @@ Run once at the start of each session:
 bash scripts/claude-boot.sh
 ```
 
-This installs scala-cli and Verilator. 
-Note: $HOME/.local/bin is already on your path
+This installs scala-cli and Verilator
+scaly is our wrapped version of scala-cli with patched cacerts
 
 ## Build & Test
 
 ```bash
 # Emit Verilog
-scala-cli compile .
+scaly compile .
 
 # Run all tests
-scala-cli test .
+scaly test .
 
 # Run a specific suite
-scala-cli test . --test-only spac.hw.RxEngineTest
+scaly test . --test-only spac.hw.RxEngineTest
 
 # Run tests matching a name pattern
-scala-cli test . --test-only spac.hw.SwitchTopTest -- -z iSLIP
+scaly test . --test-only spac.hw.SwitchTopTest -- -z iSLIP
 ```
 
 ## Architecture

@@ -11,20 +11,19 @@ shh() {
 	chars=$((chars + $(wc -c <"$log")))
 }
 
-mkdir -p /etc/apt/keyrings
-curl -sS "https://virtuslab.github.io/scala-cli-packages/scala-cli-archive-keyring.gpg" >/etc/apt/keyrings/scala-cli-archive-keyring.gpg
-
-curl -s --compressed -o /etc/apt/sources.list.d/scala_cli_packages.list https://virtuslab.github.io/scala-cli-packages/debian/scala_cli_packages.list
-sudo apt update
-sudo apt install scala-cli
-
 echo Installing dependencies
+mkdir -p /etc/apt/keyrings
+# Official scala-cli debian repository
+curl -sS "https://virtuslab.github.io/scala-cli-packages/scala-cli-archive-keyring.gpg" >/etc/apt/keyrings/scala-cli-archive-keyring.gpg
+curl -s --compressed -o /etc/apt/sources.list.d/scala_cli_packages.list https://virtuslab.github.io/scala-cli-packages/debian/scala_cli_packages.list
 shh apt-get update
 shh apt-get install -y verilator scala-cli
 verilator --version
 scala-cli --version
 
-# Update Java Cacerts with anthropic's egress certificates. This prevents SSL errors when running Scala CLI.
+echo Updating Java Cacerts
+# Propagate system CA certs to Java cacerts, so that scala-cli can fetch dependencies from Maven Central.
+#This prevents PKIX path validation errors due to missing CA certs for the egress proxy.
 if keytool -list -keystore /etc/ssl/certs/java/cacerts -alias anthropic-egress-0 -storepass changeit >/dev/null 2>&1; then
 	echo "Certificates already present in cacerts, skipping import."
 else
@@ -40,21 +39,18 @@ else
 	done
 fi
 
-cd /home/claude/.local/bin
-curl -fsSL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d >scala-cli.real
-chmod +x scala-cli.real
-
-cat >scala-cli <<'WRAPPER'
+mkdir -p /root/.local/bin
+cat >/root/.local/bin/scaly <<'WRAPPER'
 #!/bin/sh
 # Set trustStore before declaring scala-cli command, so that graalvm native-image picks up the correct cacerts file.
-scala-cli.real -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts "$@"
+scala-cli -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts "$@"
 exit $?
 WRAPPER
-chmod +x scala-cli
-scala-cli --version
+chmod +x /root/.local/bin/scaly
+scaly --version
 
 echo Warming cache
 cd /home/claude/spac-chisel
-shh scala-cli compile .
-
+shh scaly compile .
+shh scaly test . --test-only spac.hw.RxEngineTest
 echo "Boot complete. Suppressed ${chars} chars of output (~$((chars / 4)) tokens)."

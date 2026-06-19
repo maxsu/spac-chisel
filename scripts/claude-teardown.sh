@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-apt-get remove -y verilator >/dev/null 2>&1
-/home/claude/.local/bin/scala-cli bloop exit >/dev/null 2>&1
+apt-get remove -y verilator scala-cli >/dev/null 2>&1
+/home/claude/.local/bin/scaly bloop exit >/dev/null 2>&1
 pkill -f bloop 2>/dev/null
-rm -f /usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts
+rm -f /root/.local/bin/scaly
 rm -rf /root/.cache/{scala-cli,scalacli,coursier}
-rm -f /home/claude/.local/bin/scala-cli{,.real}
 rm -rf /home/claude/spac-chisel/{.scala-build,.bloop}
 echo "Teardown complete."
