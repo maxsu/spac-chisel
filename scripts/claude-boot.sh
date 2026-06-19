@@ -11,18 +11,33 @@ shh() {
 	chars=$((chars + $(wc -c <"$log")))
 }
 
+mkdir -p /etc/apt/keyrings
+curl -sS "https://virtuslab.github.io/scala-cli-packages/scala-cli-archive-keyring.gpg" >/etc/apt/keyrings/scala-cli-archive-keyring.gpg
+
+curl -s --compressed -o /etc/apt/sources.list.d/scala_cli_packages.list https://virtuslab.github.io/scala-cli-packages/debian/scala_cli_packages.list
+sudo apt update
+sudo apt install scala-cli
+
 echo Installing dependencies
 shh apt-get update
-shh apt-get install -y verilator
+shh apt-get install -y verilator scala-cli
 verilator --version
+scala-cli --version
 
-if keytool -list -keystore /etc/ssl/certs/java/cacerts -alias anthropic-egress-gateway -storepass changeit >/dev/null 2>&1; then
-	echo "Certificate already present in cacerts, skipping import."
+# Update Java Cacerts with anthropic's egress certificates. This prevents SSL errors when running Scala CLI.
+if keytool -list -keystore /etc/ssl/certs/java/cacerts -alias anthropic-egress-0 -storepass changeit >/dev/null 2>&1; then
+	echo "Certificates already present in cacerts, skipping import."
 else
-	echo "Importing Egress certificate into cacerts..."
-	openssl s_client -connect repo1.maven.org:443 -servername repo1.maven.org -showcerts </dev/null 2>/dev/null |
-		awk '/BEGIN/{c++} c==2,/END/' |
-		keytool -importcert -noprompt -alias anthropic-egress-gateway -keystore /etc/ssl/certs/java/cacerts -storepass changeit
+	echo "Importing Egress certificates into cacerts..."
+	rm -rf /tmp/certs && mkdir /tmp/certs
+	csplit -s -z -f /tmp/certs/cert_ -b '%03d.pem' /etc/ssl/certs/ca-certificates.crt '/-----BEGIN CERTIFICATE-----/' '{*}'
+	i=0
+	for f in /tmp/certs/*.pem; do
+		if openssl x509 -noout -subject -in "$f" 2>/dev/null | grep -qi "egress"; then
+			keytool -importcert -noprompt -alias "anthropic-egress-$i" -keystore /etc/ssl/certs/java/cacerts -storepass changeit <"$f"
+			i=$((i + 1))
+		fi
+	done
 fi
 
 cd /home/claude/.local/bin
@@ -31,9 +46,7 @@ chmod +x scala-cli.real
 
 cat >scala-cli <<'WRAPPER'
 #!/bin/sh
-export JAVA_OPTS="-Djavax.net.ssl.trustStorePassword=changeit"
-# Ensure graalvm native image finds correct cacerts
-# It uses pre-bundled cacerts with no egress gateway cert, so use our patched version instead
+# Set trustStore before declaring scala-cli command, so that graalvm native-image picks up the correct cacerts file.
 scala-cli.real -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts "$@"
 exit $?
 WRAPPER
