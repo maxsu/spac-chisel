@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CERTS=/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts
-ln -sf /etc/ssl/certs/java/cacerts $CERTS
+chars=0
+shh() {
+	log=$(mktemp)
+	if ! "$@" >"$log" 2>&1; then
+		echo "ERROR! See $log for details!"
+		return 1
+	fi
+	chars=$((chars + $(wc -c <"$log")))
+}
 
-apt-get update -qq
-apt-get install -qq verilator
+echo Copying Java cacerts
+CERTS=/usr/lib/jvm/java-21-openjdk-amd64/lib/security/cacerts
+cp /etc/ssl/certs/java/cacerts $CERTS
+
+echo Installing dependencies
+shh apt-get update
+shh apt-get install -y verilator
 verilator --version
 
-mkdir -p "/root/.local/bin"
-cd "/root/.local/bin"
+cd /home/claude/.local/bin
 curl -fsSL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d >scala-cli.real
 chmod +x scala-cli.real
 cat >scala-cli <<WRAPPER
@@ -20,8 +31,8 @@ WRAPPER
 chmod +x scala-cli
 scala-cli --version
 
-cd /home/claude/spac-chisel
 echo Warming cache
-scala-cli compile . >/dev/null 2>&1
+cd /home/claude/spac-chisel
+shh scala-cli compile .
 
-echo Boot complete.
+echo "Boot complete. Suppressed ${chars} chars of output (~$((chars / 4)) tokens)."
