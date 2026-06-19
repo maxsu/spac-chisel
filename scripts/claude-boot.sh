@@ -16,7 +16,7 @@ shh apt-get update
 shh apt-get install -y verilator
 verilator --version
 
-if keytool -list -keystore /etc/ssl/certs/java/cacerts -alias anthropic-egress-gateway >/dev/null 2>&1; then
+if keytool -list -keystore /etc/ssl/certs/java/cacerts -alias anthropic-egress-gateway -storepass changeit >/dev/null 2>&1; then
 	echo "Certificate already present in cacerts, skipping import."
 else
 	echo "Importing Egress certificate into cacerts..."
