@@ -17,7 +17,13 @@ shh apt-get install -y verilator
 verilator --version
 
 cd /home/claude/.local/bin
-curl -fsSL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d >scala-cli
+curl -fsSL https://github.com/Virtuslab/scala-cli/releases/latest/download/scala-cli-x86_64-pc-linux.gz | gzip -d >scala-cli.real
+chmod +x scala-cli.real
+cat >scala-cli <<WRAPPER
+#!/bin/sh
+export JAVA_OPTS="-Djavax.net.ssl.trustStorePassword=changeit"
+scala-cli.real "\$@"
+WRAPPER
 chmod +x scala-cli
 scala-cli --version
 
