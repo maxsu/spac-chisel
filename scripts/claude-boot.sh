@@ -20,8 +20,6 @@ curl -sS "https://virtuslab.github.io/scala-cli-packages/scala-cli-archive-keyri
 curl -s --compressed -o /etc/apt/sources.list.d/scala_cli_packages.list https://virtuslab.github.io/scala-cli-packages/debian/scala_cli_packages.list
 shh apt-get update
 shh apt-get install -y verilator scala-cli
-verilator --version
-scala-cli --version
 
 echo Installing Scaly 🐉
 mkdir -p /root/.local/bin
@@ -31,6 +29,8 @@ scala-cli -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts "$@"
 exit $?
 WRAPPER
 chmod +x /root/.local/bin/scaly
+
+verilator --version
 scaly --version
 
 echo Warming cache

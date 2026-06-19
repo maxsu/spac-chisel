@@ -1,4 +1,4 @@
-# AGENT.md — SPAC-Chisel
+# Claude.md — SPAC-Chisel
 
 Chisel 7 hardware description of the SPAC network switch (arXiv 2604.21881v1).
 
