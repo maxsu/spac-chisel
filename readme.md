@@ -5,7 +5,7 @@ Chisel/Scala replication of the SPAC network switch paper (arXiv 2604.21881v1). 
 ## Architecture
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fcfcfc', 'edgeLabelBackground':'#fff'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#4f78e7', 'textColor': '#ffffff', 'lineColor': '#000000', 'edgeLabelBackground':'#ffffff'}}}%%
 flowchart TD
         rx["io.rx (xN)"]
         tx["io.tx (xN)"]
