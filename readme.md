@@ -5,8 +5,9 @@ Chisel/Scala replication of the SPAC network switch paper (arXiv 2604.21881v1). 
 ## Architecture
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#4f78e7', 'textColor': '#ffffff', 'lineColor': '#000000', 'edgeLabelBackground':'#ffffff'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#000000', 'edgeLabelBackground':'#ffffff'}}}%%
 flowchart TD
+    subgraph wrapper[" "]
         rx["io.rx (xN)"]
         tx["io.tx (xN)"]
         deser["RxEngine (xN)"]
@@ -17,21 +18,25 @@ flowchart TD
         lkp["Lookup Engine<br/>(Multi-Bank Hash/Full Lookup)"]
         policy["Scheduler<br/>(Round-Robin/iSLIP/EDRRM)"]
 
-    rx -->|"raw"| deser
-    deser -->|"payload"| qDATA
-    deser -->|"header"| hdr
-    hdr --> qH --> lkp
-    lkp -->|"dst"| qCTRL
-    qDATA --> policy
-    qCTRL --> policy
-    policy --> tx
+        rx -->|"raw"| deser
+        deser -->|"payload"| qDATA
+        deser -->|"header"| hdr
+        hdr --> qH --> lkp
+        lkp -->|"dst"| qCTRL
+        qDATA --> policy
+        qCTRL --> policy
+        policy --> tx
+    end
 
-    classDef io fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef mem fill:#fff9c4,stroke:#fbc02d,stroke-dasharray: 5 5;
-    classDef logic fill:#f3e5f5,stroke:#7b1fa2;
+    classDef io fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000;
+    classDef mem fill:#fff9c4,stroke:#fbc02d,stroke-dasharray: 5 5,color:#000000;
+    classDef logic fill:#4f78e7,stroke:#1d4ed8,color:#ffffff;
+    
     class rx,tx io;
     class qDATA,qH,qCTRL mem;
     class lkp,policy,deser,hdr logic;
+
+    style wrapper fill:#ffffff,stroke:none;
 ```
 
 ## Dependencies
