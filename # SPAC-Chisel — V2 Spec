@@ -1,0 +1,132 @@
+# SPAC-Chisel — V2 Spec
+
+**Status:** draft for discussion. Supersedes the original SPEC.md.
+
+## What V2 is
+
+V2 reproduces the SPAC *method* in a Chisel-native flow:
+Chisel emits and simulates the full design matrix, runs simulations, and collects fitness metrics.
+
+This is close to the SPAC reference implementation:
+- ~100 units under test
+- simulate the whole matrix
+- no pruning
+
+V2 uses the waveform simulator as the sole evaluation. 
+
+## V2 Scope
+
+V2 is designed to be **fpga-independent** and to run **inside claude's sandbox**. For each configuration in the design matrix, it produces a fitness record from simulation.
+
+---
+
+## Pipeline
+
+```
+SwitchParams matrix (~100 configs)
+        ▼
+   Chisel elaboration
+        ▼
+   SystemVerilog
+        ▼
+   Verilator sim ──► fitness metrics
+        ▼        └─► waveforms
+        ▼        └─► saturating traffic
+        ▼        └─► conflicting traffic
+        ▼
+   FitnessTable ──► sort by fitness
+                └─► inspect the gap metrics
+```
+
+---
+
+## Toolchain
+
+| Stage | Tool | Why |
+|-------|------|-----|
+| RTL generation | Chisel → `emitSystemVerilog` | Our circuit compiler. |
+| Behavioral sim | Verilator | Fitness metrics + waveforms (.vcd). Fast, sandbox-native. |
+
+---
+
+## The config matrix
+
+The product of the `SwitchParams` architecture axes (`spac/hw/Types.scala`):
+
+| Axis | Values |
+|------|--------|
+| `hash` | FullLookup, MultiBankHash |
+| `buf` | NxNVOQ, SharedVOQ |
+| `sched` | RoundRobin, ISLIP, EDRRM |
+| `nPorts` | {2, 4, 8, 16, ...} (final set TBD) |
+| (width/depth) | held fixed unless an axis is promoted |
+
+2 × 2 × 3 = 12 architectural variants per port count. We may vary the exact port-count set and
+whether we promote `dataBits`/`qDepthLog`.
+
+---
+
+## Fitness metrics
+
+- **Throughput** — packets/cycle sustained under load.
+- **Latency** — mean and tail, in cycles.
+- **Drop behavior** — packets dropped under given load / VOQ pressure.
+- **Logical II** — the structural accept cadence of the nominal path,
+  computed by counting `step()` invocations along a unit's critical path. May be a *range* for units with data-dependent control flow (e.g. a scheduler loops, hash retries) — practical II then disambiguates.
+- **Practical II** — the real steady-state accept cadence the trace
+  oracle observes, read off the ready/valid handshake under saturating and
+  conflict-inducing traffic.
+- **II gap** - how far a unit falls short of its ideal cadence, and under what conditions. A
+  config that holds logical II under degraded/high-bandwidth load is fitter than
+  one that collapses.
+
+---
+
+## Components
+
+- **`spac/hw/*`** — the Chisel switch (RxEngine, ForwardTable, Schedulers,
+  SwitchTop, Types).
+- **SV emit harness** *(new)* — elaborate each `SwitchParams` → SystemVerilog.
+- **Logical-II annotation** - annotate scheduler units with II parameters counting pipeline stages; emits logical II (scalar or range).
+- **Verilator sweep harness** — for each config:
+  - build the Verilator model 
+  - drive saturating + conflict testbenches, record throughput / latency /
+  drops / practical II, dump waveforms.
+- **FitnessTable** *(new)* — collect per-config records; emit a sortable
+  ranking.
+
+---
+
+## Decisions
+
+1. **Port-count set** - for the matrix, and whether width/depth become axes.
+  - Keep 8 ports, width, and depth fixed for now
+  - We can promote to parameters to enable, eg, buffer sizing
+2. **Operational II contract** — exact definition of "accepted" on the handshake;
+   the standard saturating pattern;
+   - the standard conflict pattern: Traffic trace T arrives at 5x speed
+   - practical II is a per-load-pattern matrix.
+3. **II** — use range to report units with variable II. Visualize practical II distribution.
+
+---
+
+## Milestones
+
+- **M1 — RTL core.** Done (carried from V1). Chisel switch + Verilator functional
+  tests pass (12/12).
+- **M2 — Sweep harness.** SV emit + Verilator sweep over the matrix, recording the
+  fitness metrics.
+- **M3 — Logical II + II gap.** Static logical-II analyzer; wire practical II from
+  M2; compute and rank on the gap.
+- **M4 — Ranking.** FitnessTable → sorted report; inspect the II-gap and fitness
+  spread across the matrix.
+
+---
+
+## Immediate next step
+
+Characterize 2–3 representative configs end to end: emit SystemVerilog, run the
+Verilator sweep (real throughput/latency/practical II, including a conflict
+pattern), compute logical II by hand, and look at the gap. That grounds the II
+contract (open decision 2) and tells us whether the metrics behave as SPAC's did
+before we scale to the full matrix.
