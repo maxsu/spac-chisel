@@ -12,15 +12,17 @@ shh() {
 
 echo Updating Java Cacerts
 shh keytool -importcert \
-	-alias=anthropic-egress-production \
-	-keystore=/etc/ssl/certs/java/cacerts \
+	-alias anthropic-egress-production \
+	-keystore /etc/ssl/certs/java/cacerts \
 	-storepass changeit \
 	-file /usr/local/share/ca-certificates/egress-gateway-ca-production.crt \
 	-noprompt
 
-echo Installing Verilator and Scala-Cli
-curl -s https://virtuslab.github.io/scala-cli-packages/scala-cli-archive-keyring.gpg >/etc/apt/keyrings/scala-cli-archive-keyring.gpg
-curl -s https://virtuslab.github.io/scala-cli-packages/debian/scala_cli_packages.list >/etc/apt/sources.list.d/scala_cli_packages.list
+echo Installing verilator and scala-cli
+cd /etc/apt
+BASE=https://virtuslab.github.io/scala-cli-packages
+curl -s $BASE/scala-cli-archive-keyring.gpg >./keyrings/scala-cli-archive-keyring.gpg
+curl -s $BASE/debian/scala_cli_packages.list >./sources.list.d/scala_cli_packages.list
 shh apt-get update
 shh apt-get install -y verilator scala-cli
 verilator --version
