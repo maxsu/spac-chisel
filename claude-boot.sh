@@ -3,7 +3,7 @@ set -euo pipefail
 
 log=$(mktemp)
 shh() {
-	echo "#" "$@" >"$log"
+	echo "#" "$@" >>"$log"
 	if ! "$@" >>"$log" 2>&1; then
 		echo "ERROR! See $log for details!"
 		return 1
